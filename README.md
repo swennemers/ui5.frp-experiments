@@ -1,6 +1,6 @@
 # Experiments with SAPUI5 and functional reactive programming paradigms
 
-Start the presentation on github: (https://swennemers.github.io/ui5.frp-experiments/01-Todo-PlainUI5.html)[https://swennemers.github.io/ui5.frp-experiments/01-Todo-PlainUI5.html]
+Start the presentation on github: [https://swennemers.github.io/ui5.frp-experiments/](https://swennemers.github.io/ui5.frp-experiments/)
 
 ## How to run locally
 ```
