@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<script id="sap-ui-bootstrap"
+			type="text/javascript"
+			src="https://sapui5.hana.ondemand.com/resources/sap-ui-core.js"
+			data-sap-ui-theme="sap_belize"
+			data-sap-ui-noConflict="true"
+			data-sap-ui-xx-bindingSyntax="complex"
+			data-sap-ui-libs="sap.m">
+	</script>
+	<script src="./rx.all.js"></script>
+	<script src="./sapui5.rx.js"></script>
+
+	<script>
+	// Search Wikipedia for a given term
+	function searchWikipedia (term) {
+		return jQuery.ajax({
+			url: 'https://en.wikipedia.org/w/api.php',
+			dataType: 'jsonp',
+			data: {
+				action: 'opensearch',
+				format: 'json',
+				search: term
+			}
+		}).promise();
+	}
+
+	var input = new sap.m.Input({
+		width : "90%",
+		valueLiveUpdate : true
+	}).addStyleClass("sapUiSmallMargin").placeAt('content');
+
+	sap.ui.mixinObservableEvents(input);
+
+	var resultList = new sap.m.List({
+		headerText : 'Wikipedia Entries',
+		width : "90%",
+		items : [
+			new sap.m.StandardListItem({
+				title : "No Data",
+				type : "Inactive",
+				press : function(){
+				}
+			})
+		]
+	}).addStyleClass("sapUiSmallMargin").placeAt('content');;
+
+	var newValue$ = input.liveChange$.map(ev => {
+		return ev.getParameters().value;
+	}).filter(function (text) {
+		return text.length > 2; // Only if the text is longer than 2 characters
+	}).debounce(250//750 /* Pause for 750ms */
+	).distinctUntilChanged(); // Only if the value has changed
+
+	var search$ = newValue$.flatMapLatest(searchWikipedia);
+
+	search$.subscribe(
+		function (data) {
+			resultList.setHeaderText("Wikipedia Entries for " + data[0]);
+			resultList.removeAllItems();
+			data[1].forEach((title, i) => {
+				var sLink = data[3][i];
+				resultList.addItem(
+					new sap.m.StandardListItem({
+						title : title,
+						description : data[2][i],
+						type : sLink ? "Active" : "Inactive",
+						press : function(){
+							sap.m.URLHelper.redirect(sLink, true);
+						}
+					})
+				);
+			});
+		},
+		function (error) {
+			resultList.removeAllItems();
+			resultList.setHeaderText("Error: " + error);
+		}
+	);
+	</script>
+</head>
+<body class="sapUiBody">
+	<h1>Wikipedia live search with SAPUI5 and Rx.js</h1>
+	<div id="content"  />
+
+	<div class="sapUiSmallMargin">
+		<p>Dramatically simplify async coordination, live search in 8 lines:</p>
+		<p><code style="font-size: large;"><pre>
+		var newValue$ = input.liveChange$.map(ev => {
+			return ev.getParameters().value;
+		}).filter(function (text) {
+			return text.length > 2; // Only if sufficiently long 
+		}).debounce(250 /* Pause for 250ms */
+		).distinctUntilChanged(); // Only if the value has changed
+
+		var search$ = newValue$.flatMapLatest(searchWikipedia);
+
+		search$.subscribe(...);
+		</pre></code></p>
+	</div>
+</body>
+</html>

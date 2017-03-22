@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Rx.js - UI5 Demo - inspired by Draw Cycle</title>
+  <style>
+  body {
+    margin: none;
+    padding: none;
+    background-color: white;
+  }
+  #app {
+    margin: 0 50px;
+    width: 300px;
+    height: 300px;
+    border: 1px solid black;
+    transform: translateY(60px);
+  }
+  svg {
+    z-index: -1;
+  }
+  #controls {
+    width: 250px;
+    margin: 0 auto;
+  }
+  #counter {
+    margin-left: 200px;
+  }
+  button {
+    padding: 20px;
+    font-size: large;
+    margin: 20px;
+    display: block;
+  }
+  #info {
+    position: relative;
+    top: 350px;
+  }
+  </style>
+  <script src="./rx.all.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/raphael/2.1.4/raphael-min.js"></script>
+  <script src="connection.js"></script>
+  <script id="sap-ui-bootstrap"
+			type="text/javascript"
+			src="https://sapui5.hana.ondemand.com/resources/sap-ui-core.js"
+			data-sap-ui-theme="sap_belize"
+			data-sap-ui-noConflict="true"
+			data-sap-ui-xx-bindingSyntax="complex"
+			data-sap-ui-libs="sap.m">
+	</script>
+	<script src="./sapui5.rx.js"></script>
+</head>
+<body>
+  <h2>Rx.js - UI5 Demo - inspired by <a href="http://github.com/bahmutov/draw-cycle"> Draw Cycle </a></h2>
+  <p>Click on "Increment" or "Decrement" buttons and see how the eventstreams are combined. <a href="./05-Wikipedia-live-search-Rxjs.html">Next</a></p>
+
+  <div id="app"></div>
+  <div id="info">
+    <p>The to SAPUI5 adapted example is taken from "Explicit dataflow" section of the website, 
+      it uses a simple <a href="/sapui5.rx.js"> Simple SAPUI5 - Rx.js Adapter </a> </p>
+    <p><code style="font-size: large;"><pre>
+    const decrement$ = decrementBtn.press$.map(ev => -1);
+    const increment$ = incrementBtn.press$.map(ev => +1);
+
+    const action$ = Observable.merge(decrement$, increment$);
+    const count$ = action$.startWith(0).scan((x,y) => x+y);
+
+    count$.subscribe(count =>
+      oJSONModel.setProperty("/count", count);
+    );
+  </pre></code></p>
+  </div>
+  <script>
+    var drawing = {
+      setValue: function () {},
+      moveEvent: function (_, label, x) {
+        return Promise.resolve(x)
+      }
+    }
+      var decrementBtn = new sap.m.Button({
+        text:'Decrement',
+      }).addStyleClass("sapUiMediumMargin");
+      decrementBtn.placeAt('app');
+      //strait forward way
+      var decrementClick$ = sap.ui.createObservable(decrementBtn, 'press');
+
+      var incrementBtn = new sap.m.Button({
+        text:'Increment',
+      }).addStyleClass("sapUiMediumMargin");
+      incrementBtn.placeAt('app');
+      sap.ui.mixinObservableEvents(incrementBtn);
+
+      var input = new sap.m.Text({
+        width : "100px",
+        text : "Count: {/count}"
+      }).addStyleClass("sapUiMediumMargin");
+      input.placeAt('app');
+
+
+      // intent
+      const decrement$ = decrementClick$
+        .flatMap(function (ev) {
+          return Rx.Observable.fromPromise(
+            drawing.moveEvent(drawing.c1, 'event', ev)
+          )
+        })
+        .map(function (ev) { return -1 })
+        .flatMap(function (x) {
+          return Rx.Observable.fromPromise(
+            drawing.moveEvent(drawing.c3, x, x)
+          )
+        });
+
+      const increment$ = incrementBtn.press$
+        .flatMap(function (ev) {
+          return Rx.Observable.fromPromise(
+            drawing.moveEvent(drawing.c2, 'event', ev)
+          )
+        })
+        .map(function (ev) { return +1 })
+        .flatMap(function (x) {
+          return Rx.Observable.fromPromise(
+            drawing.moveEvent(drawing.c4, x, x)
+          )
+        });
+
+      const action$ = Rx.Observable.merge(decrement$, increment$)
+        .flatMap(function (x) {
+          return Rx.Observable.fromPromise(
+            drawing.moveEvent(drawing.c5, x, x)
+          )
+        });
+
+      // model
+      const count$ = action$.startWith(0)
+        .scan(function (x,y) { return x+y })
+        .tap(function (x) { drawing.setValue(x) })
+        .flatMap(function (x) {
+          return Rx.Observable.fromPromise(
+            drawing.moveEvent(drawing.c6, x, x)
+          )
+        });
+
+      // view
+      var state = new sap.ui.model.json.JSONModel({count : 0});
+      sap.ui.getCore().setModel(state);
+
+      var currentCount = 0;
+      const bindingUpdate$ = count$.flatMap(function (x) {
+        return Rx.Observable.fromPromise(
+          drawing.moveEvent(drawing.c7, "setText", x, 'count\n.setText("'+currentCount+'")')
+        )
+      }).subscribe(count => {
+        state.setProperty("/count", count)
+      });
+
+    
+
+    setTimeout(function () {
+      // drawing code
+      var w = window,
+      d = document,
+      e = d.documentElement,
+      g = d.getElementsByTagName('body')[0],
+      x = w.innerWidth || e.clientWidth || g.clientWidth,
+      y = w.innerHeight|| e.clientHeight|| g.clientHeight;
+
+      if (y < 700) {
+        y = 700
+      }
+
+      // Creates canvas 320 × 200 at 10, 50
+      var paper = Raphael(0, 0, x, y);
+
+      function moveEvent(conn, labelText, value, bottomText) {
+        var n = conn.line.getTotalLength()
+        var pos = conn.line.getPointAtLength(0)
+        var radius = typeof labelText === 'string' ? 20 : 20
+        var circle = paper.circle(pos.x, pos.y, radius);
+        circle.attr({
+          cx: pos.x,
+          cy: pos.y,
+          fill: '#fff',
+          stroke: '#000'
+        })
+
+        var label = paper.text()
+        label.attr({
+          text: labelText,
+          'font-size': '12px'
+        })
+
+        var bottomLabel;
+        if (bottomText) {
+          bottomLabel = paper.text()
+          bottomLabel.attr({
+            text: bottomText,
+            'font-size': '12px',
+            'font-family': 'monospace',
+            'white-space': 'pre',
+            'text-anchor': 'end'
+          })
+        }
+
+        var counter = 0;
+        return new Promise(function (resolve) {
+          var interval;
+          function animate() {
+            if (n < counter) {
+              clearInterval(interval);
+              circle.remove();
+              label.remove();
+              if (bottomLabel) {
+                bottomLabel.remove()
+              }
+              resolve(value);
+              return;
+            }
+            var pos = conn.line.getPointAtLength(counter);
+            circle.attr({
+              cx: pos.x,
+              cy: pos.y
+            })
+            label.attr({
+              x: pos.x,
+              y: pos.y
+            })
+            if (bottomLabel) {
+              bottomLabel.attr({
+                x: pos.x - 50,
+                y: pos.y + 60
+              })
+            }
+            counter += 1;
+          }
+          interval = setInterval(animate, 10);
+        })
+      }
+      drawing.moveEvent = moveEvent;
+
+      var decClicks = paper.rect(400, 150, 100, 50)
+      decClicks.attr('fill', '#ffe')
+      decClicks.attr('stroke', '#f00')
+      var decClicksText = paper.text(450, 175)
+      decClicksText.attr({ text: 'map\nev => -1', 'font-size': '12px' })
+      var decrementsText = paper.text(550, 160)
+      decrementsText.attr({ text: 'decrements$', 'font-size': '15px' })
+
+      var incClicks = paper.rect(400, 250, 100, 50)
+      incClicks.attr('fill', '#ffe')
+      incClicks.attr('stroke', '#f00')
+      var incClicksText = paper.text(450, 275)
+      incClicksText.attr({ text: 'map\nev => +1', 'font-size': '15px' })
+      var incrementsText = paper.text(550, 285)
+      incrementsText.attr({ text: 'increments$', 'font-size': '15px' })
+
+      var actions = paper.rect(600, 200, 100, 50)
+      actions.attr('fill', '#ffe')
+      actions.attr('stroke', '#f00')
+      var actionsText = paper.text(650, 225)
+      actionsText.attr({ text: 'merge', 'font-size': '15px' })
+      var actions$Text = paper.text(690, 260)
+      actions$Text.attr({ text: 'actions$', 'font-size': '15px' })
+
+      // paper.connection(circle, circle2, '#00f')
+      // animating movement along path is based on
+      // http://jsfiddle.net/gyeSf/17/
+      drawing.c1 = paper.connection(decrementBtn.getDomRef(), decClicks, '#333')
+      drawing.c2 = paper.connection(incrementBtn.getDomRef(), incClicks, '#333')
+
+      drawing.c3 = paper.connection(decClicks, actions, '#333')
+      drawing.c4 = paper.connection(incClicks, actions, '#333')
+
+      // model
+      var scan = paper.rect(550, 400, 100, 50)
+      scan.attr('fill', '#ffe')
+      scan.attr('stroke', '#0f0')
+      var scanText = paper.text(600, 425)
+      scanText.attr({ text: 'scan\n(x,y) => x+y', 'font-size': '15px' })
+
+      var valueText = paper.text(680, 420)
+      valueText.attr({ text: 'value\n0', 'font-size': '15px' })
+      drawing.setValue = function (value) {
+        valueText.attr('text', 'value\n' + value)
+      }
+
+      var count$Text = paper.text(520, 410)
+      count$Text.attr({ text: 'count$', 'font-size': '15px' })
+
+      drawing.c5 = paper.connection(actions, scan, '#333')
+
+      // view
+      var vtree = paper.rect(360, 550, 340, 150)
+      vtree.attr('fill', '#ffe')
+      vtree.attr('stroke', '#00f')
+      var vtreeText = paper.text(370, 625)
+      vtreeText.attr({
+        text: 'count$.subscribe(i =>\n'+
+              '    oJSONModel.setProperty("/count", i);\n'+
+              ');',
+        'font-size': '15px',
+        'font-family': 'monospace',
+        'white-space': 'pre',
+        'text-anchor': 'start'
+      })
+      var vtree$Text = paper.text(320, 635)
+      vtree$Text.attr({ text: 'databinding', 'font-size': '15px' })
+
+      drawing.c6 = paper.connection(scan, vtree, '#333')
+      drawing.c7 = paper.connection(vtree, document.querySelector('#app'), '#333')
+
+      // Intent / Model / View blocks
+      var intentBlock = paper.rect(380, 120, 350, 200)
+      intentBlock.attr({
+        stroke: '#f00'
+      });
+      var intentText = paper.text(700, 130)
+      intentText.attr({
+        text: 'Intent',
+        'font-size': '15px',
+        fill: '#f00',
+        stroke: 'none'
+      })
+
+      var modelBlock = paper.rect(380, 330, 350, 170)
+      modelBlock.attr({
+        stroke: '#0f0'
+      });
+      var modelText = paper.text(700, 340)
+      modelText.attr({
+        text: 'Model',
+        'font-size': '15px',
+        fill: '#0f0',
+        stroke: 'none'
+      })
+
+      var viewText = paper.text(650, 560)
+      viewText.attr({
+        text: 'JSONModel',
+        'font-size': '15px',
+        fill: '#00f',
+        stroke: 'none'
+      })
+
+    }, 1000);
+  </script>
+</body>
+</html>

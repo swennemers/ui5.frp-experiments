@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<script id="sap-ui-bootstrap"
+			type="text/javascript"
+			src="https://sapui5.hana.ondemand.com/resources/sap-ui-core.js"
+			data-sap-ui-theme="sap_belize"
+			data-sap-ui-noConflict="true"
+			data-sap-ui-xx-bindingSyntax="complex"
+			data-sap-ui-libs="sap.m">
+	</script>
+
+	<script>
+
+		var initialState = {
+			todos : [
+				{
+					id : 0,
+					text : "Learn SAPUI5",
+					completed : true
+				},{
+					id : 1,
+					text : "Learn Flux",
+					completed : false
+				},{
+					id : 2,
+					text : "Learn Redux",
+					completed : false
+				},
+			],
+			visibilityFilter : "SHOW_ALL"
+		};
+
+		var state = new sap.ui.model.json.JSONModel({state : initialState});
+		sap.ui.getCore().setModel(state);
+
+		//action creators
+		let nextTodoId = 3;
+		const addTodo = (text) => {
+			return  {
+				type: 'ADD_TODO',
+				id: nextTodoId++,
+				text
+			}
+		};
+		const toggleTodo = (id) => {
+			return {
+				type: 'TOGGLE_TODO',
+				id
+			};
+		};
+		const setVisibilityFilter = (filter) => {
+			return {
+				type: 'SET_VISIBILITY_FILTER',
+				filter
+			};
+		};
+
+		// UI Controls
+		var input = new sap.m.Input({
+			width : "300px"
+		});
+		input.placeAt('content');
+		var btn = new sap.m.Button("myButton", {
+			text:'Add To Do',
+			press: function(){
+				sap.ui.getCore().getEventBus().publish("actions", addTodo(input.getValue()));
+			}
+		});
+		btn.placeAt('content');
+
+		var list = new sap.m.List({
+			headerText : 'To Dos'
+		});
+		list.bindAggregation("items", "/state/todos", new sap.m.StandardListItem({
+			title : "{text}",
+			type : "Active",
+			icon : "{= ${completed} ? 'sap-icon://complete' : '' }",
+			visible : "{= ${/state/visibilityFilter} === 'SHOW_ALL' ? true : ( ${/state/visibilityFilter} === 'SHOW_COMPLETED' ? ${completed} : ( ${/state/visibilityFilter} === 'SHOW_ACTIVE' ? !${completed} : true ) ) }",
+			press : function(){
+				var id = this.getModel().getProperty(this.getBindingContextPath()).id;
+				sap.ui.getCore().getEventBus().publish("actions", toggleTodo(id));
+			}
+		}));
+		list.placeAt('content');
+
+		function filterButton (filter, filterText){
+			return new sap.m.Button({
+				text: filterText,
+				enabled : "{= ${/state/visibilityFilter} !== '" + filter +  "'}",
+				press: function(){
+					sap.ui.getCore().getEventBus().publish("actions", setVisibilityFilter(filter));
+				}
+			});
+		};
+		var btn = filterButton("SHOW_ALL", "Show all");
+		btn.placeAt('content');
+		btn = filterButton("SHOW_ACTIVE", "Show active");
+		btn.placeAt('content');
+		btn = filterButton("SHOW_COMPLETED", "Show completed");
+		btn.placeAt('content');
+
+		//Reducer functions:
+		const todos = (state = [], action) => {
+		  switch (action.type) {
+			case 'ADD_TODO' :
+			  return [
+				...state,
+				{
+				  id : action.id,
+				  text : action.text,
+				  completed : false
+				}
+			  ];
+			case 'TOGGLE_TODO' :
+			  return state.map(todo => {
+				if(todo.id != action.id){
+				  return todo;
+				}
+
+				return {
+				  id : todo.id,
+				  text : todo.text,
+				  completed : !todo.completed
+				}
+			  });
+			default:
+			  return state;
+		  }
+		};
+		const visibilityFilter = ( state = 'SHOW_ALL', action) => {
+		  switch (action.type) {
+			case 'SET_VISIBILITY_FILTER':
+			   return action.filter;
+			default :
+			  return state;
+		  }
+		};
+		//reduce composition (todos + visibilityFilter)
+		//- own written reducer composition
+		//const todoApp = (state = {}, action) => {
+		//  return {
+		//	todos: todos(
+		//	  state.todos, action),
+		//	visibilityFilter: visibilityFilter(
+		//	  state.visibilityFilter, action)
+		//  };
+		//};
+
+		//self made combineReducers:
+		const myCombineReducers = (reducers) => {
+		  return (state = {}, action) => {
+			return Object.keys(reducers).reduce(
+			   (nextState, key) => {
+				 nextState[key] = reducers[key](
+				   state[key],
+				   action
+				 );
+				 return nextState;
+			   },
+			   {}
+			);
+		  };
+		};
+		const todoApp = myCombineReducers({
+		  todos,
+		  visibilityFilter
+		});
+
+		//dispatcher
+		sap.ui.getCore().getEventBus().subscribe("actions", function(sChannelId, sEventId, action){
+			var newState = todoApp(state.getProperty("/state"), action);
+			state.setProperty("/state",  newState);
+		});
+
+
+		//presentation:
+		new sap.m.Image({
+			src : "./UI5Flux.png",
+			width : "100%",
+			press : _ => { sap.m.URLHelper.redirect('./02-Todo-Redux.html')}
+		}).placeAt("content");
+		 
+		new sap.ui.core.HTML({ 
+			content: '<div class="sapUiTinyMarginBegin">Inspired by <a href="https://code-cartoons.com/">'+
+					'Lin Clark - Code Cartoons</a> and ' +
+					'<a href="https://egghead.io/courses/getting-started-with-redux">' +
+					'Dan Abramov - Getting started with Redux </a></div>',
+		}).placeAt("content");
+	</script>
+</head>
+<body id="content" class="sapUiBody">
+	<h1>To Do App with Flux pattern in plain SAPUI5</h1>
+</body>
+</html>

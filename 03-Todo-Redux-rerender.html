@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<script id="sap-ui-bootstrap"
+			type="text/javascript"
+			src="https://sapui5.hana.ondemand.com/resources/sap-ui-core.js"
+			data-sap-ui-theme="sap_belize"
+			data-sap-ui-noConflict="true"
+			data-sap-ui-xx-bindingSyntax="complex"
+			data-sap-ui-libs="sap.m">
+	</script>
+	<script src="./redux.js"></script>
+
+	<script>
+		var initialState = {
+			todos : [
+				{
+					id : 0,
+					text : "Learn SAPUI5",
+					completed : true
+				},{
+					id : 1,
+					text : "Learn Flux",
+					completed : false
+				},{
+					id : 2,
+					text : "Learn Redux",
+					completed : false
+				},
+			],
+			visibilityFilter : "SHOW_ALL"
+		};
+
+		//action creators
+		let nextTodoId = 3;
+		const addTodo = (text) => {
+			return  {
+				type: 'ADD_TODO',
+				id: nextTodoId++,
+				text
+			}
+		};
+		const toggleTodo = (id) => {
+			return {
+				type: 'TOGGLE_TODO',
+				id
+			};
+		};
+		const setVisibilityFilter = (filter) => {
+			return {
+				type: 'SET_VISIBILITY_FILTER',
+				filter
+			};
+		};
+
+		//Reducer functions:
+		const todos = (state = initialState.todos, action) => {
+		  switch (action.type) {
+			case 'ADD_TODO' :
+			  return [
+				...state,
+				{
+				  id : action.id,
+				  text : action.text,
+				  completed : false
+				}
+			  ];
+			case 'TOGGLE_TODO' :
+			  return state.map(todo => {
+				if(todo.id != action.id){
+				  return todo;
+				}
+
+				return {
+				  id : todo.id,
+				  text : todo.text,
+				  completed : !todo.completed
+				}
+			  });
+			default:
+			  return state;
+		  }
+		};
+		const visibilityFilter = ( state = initialState.visibilityFilter, action) => {
+		  switch (action.type) {
+			case 'SET_VISIBILITY_FILTER':
+			   return action.filter;
+			default :
+			  return state;
+		  }
+		};
+
+		//Wiring all together:
+		//- reducer composition with Redux
+		const todoApp = Redux.combineReducers({
+		  todos,
+		  visibilityFilter
+		});
+		//Create Store:
+		const store = Redux.createStore(todoApp);
+
+		var controls = []
+		const render = function(){
+			controls.forEach(control => {
+				control.destroy();
+			});
+			controls = [];
+			var input = new sap.m.Input({
+				width : "300px"
+			});
+			controls.push(input);
+			controls.push(new sap.m.Button({
+				text:'Add To Do',
+				press: function(){
+					store.dispatch(addTodo(input.getValue()));
+				}
+			}));
+
+			const getVisibleTodos = ( state ) => {
+			  switch(state.visibilityFilter) {
+			    case 'SHOW_ALL' :
+			      return state.todos;
+			    case 'SHOW_COMPLETED' :
+			      return state.todos.filter(
+			        t => t.completed
+			      );
+			    case 'SHOW_ACTIVE' :
+			      return state.todos.filter(
+			        t => !t.completed
+			      );
+			  }
+			};
+
+			controls.push(new sap.m.List({
+				headerText : 'To Dos',
+				items : getVisibleTodos(store.getState()).map(todo => {
+					return new sap.m.StandardListItem({
+				   		title : todo.text,
+				   		type : "Active",
+				   		icon : todo.completed ? 'sap-icon://complete' : '',
+				   		press : function(){
+				   			store.dispatch(toggleTodo(todo.id));
+				   		}
+					});
+				})
+			}));
+			function filterButton (filter, filterText){
+				return new sap.m.Button({
+					text: filterText,
+					enabled : store.getState().visibilityFilter !== filter,
+					press: function(){
+						store.dispatch(setVisibilityFilter(filter));
+					}
+				});
+			};
+			controls.push(filterButton("SHOW_ALL", "Show all"));
+			controls.push(filterButton("SHOW_ACTIVE", "Show active"));
+			controls.push(filterButton("SHOW_COMPLETED", "Show completed"));
+
+			controls.forEach(control => {
+				control.placeAt('content');
+			});
+		};
+
+		//render when store==state changes
+		store.subscribe(render);
+		//render initial state
+		render();
+		
+		//presentation:
+		new sap.m.Image({
+			src : "./UI5Redux-rerender.png",
+			width : "100%",
+			press : _ => { sap.m.URLHelper.redirect('./04-Counter-Rxjs.html')}
+		}).placeAt("content");
+		 
+		new sap.ui.core.HTML({ 
+			content: '<div class="sapUiTinyMarginBegin">Inspired by <a href="https://code-cartoons.com/">'+
+					'Lin Clark - Code Cartoons</a> and ' +
+					'<a href="https://egghead.io/courses/getting-started-with-redux">' +
+					'Dan Abramov - Getting started with Redux </a></div>',
+		}).placeAt("content");
+	</script>
+</head>
+<body id="content" class="sapUiBody">
+	<h1>To Do App with Flux pattern in Redux create the SAPUI5 controls on each changes</h1>
+</body>
+</html>
